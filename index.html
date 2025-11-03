@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard RFQ — Analisis Penawaran</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body class="bg-gray-50 font-sans antialiased">
+    <!-- Login Screen -->
+    <div id="loginScreen" class="fixed inset-0 bg-gradient-to-br from-gray-100 to-gray-300 flex items-center justify-center z-[1000]">
+        <div class="w-full max-w-md p-6">
+            <div class="bg-white rounded-xl shadow-lg p-12 w-full">
+                <div class="text-center mb-12">
+                    <div class="text-4xl mb-4">📊</div>
+                    <h1 class="text-3xl font-semibold text-gray-900 mb-2">Dashboard RFQ</h1>
+                    <p class="text-base text-gray-600">Analisis Penawaran 2025</p>
+                </div>
+                <form id="loginForm" class="space-y-6">
+                    <div>
+                        <label for="username" class="block text-sm font-medium text-gray-700 mb-2">Username</label>
+                        <input 
+                            type="text" 
+                            id="username" 
+                            name="username" 
+                            placeholder="Masukkan username"
+                            required
+                            autocomplete="username"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        >
+                    </div>
+                    <div>
+                        <label for="password" class="block text-sm font-medium text-gray-700 mb-2">Password</label>
+                        <input 
+                            type="password" 
+                            id="password" 
+                            name="password" 
+                            placeholder="Masukkan password"
+                            required
+                            autocomplete="current-password"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        >
+                    </div>
+                    <div id="loginError" class="text-red-600 text-sm" style="display: none;">
+                        Username atau password salah
+                    </div>
+                    <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 px-4 rounded-md transition-colors duration-200">
+                        <span>Masuk</span>
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dashboard Container -->
+    <div id="dashboardContainer" class="min-h-screen p-6 w-full" style="display: none;">
+        <header class="mb-12 pb-6 border-b border-gray-200 flex justify-between items-start gap-6 flex-wrap">
+            <div class="flex-1 min-w-[200px]">
+                <h1 class="text-4xl font-semibold text-gray-900 mb-1 tracking-tight">Dashboard RFQ</h1>
+                <p class="text-base text-gray-600">Analisis Penawaran 2025</p>
+            </div>
+            <div class="flex items-center gap-4 flex-wrap">
+                <div class="flex items-center gap-2">
+                    <span id="fileName" class="text-sm text-gray-600"></span>
+                </div>
+                <button id="logoutButton" class="px-4 py-2 bg-white border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 transition-all hover:-translate-y-0.5" title="Logout">
+                    <span>Keluar</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- Data Preview Section -->
+        <div class="bg-white border border-gray-200 rounded-xl shadow-sm mb-6" id="previewSection" style="display: none;">
+            <div class="flex justify-between items-center px-6 py-4 border-b border-gray-200 bg-gray-50 cursor-move">
+                <h3 class="text-lg font-semibold text-gray-900">Preview Data</h3>
+                <button class="widget-toggle w-6 h-6 flex items-center justify-center rounded text-gray-600 hover:bg-white" aria-label="Toggle widget">−</button>
+            </div>
+            <div class="p-6 overflow-visible">
+                <div id="columnInfo"></div>
+                <div class="mt-4 max-h-[400px] overflow-auto">
+                    <table id="previewTable" class="w-full text-sm">
+                        <thead id="previewTableHead"></thead>
+                        <tbody id="previewTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 gap-6 w-full" id="dashboardGrid">
+            <!-- Widgets will be added here one by one -->
+            <div class="col-span-full bg-white border border-gray-200 rounded-xl p-8 text-center">
+                <p id="dataStatus" class="text-base text-gray-600">Menunggu data dimuat...</p>
+            </div>
+
+            <!-- Widget: Jumlah RFQ per Customer per Sales -->
+            <div class="col-span-full bg-white border border-gray-200 rounded-xl shadow-sm overflow-visible cursor-move relative w-full" data-widget-id="widget-rfq-customer-sales">
+                <div class="flex justify-between items-center px-6 py-4 border-b border-gray-200 bg-gray-50 cursor-move">
+                    <h3 class="text-lg font-semibold text-gray-900" id="rfq-customer-sales-title">Jumlah RFQ per Customer per Sales</h3>
+                    <div class="flex items-center gap-2">
+                        <button id="rfq-customer-sales-toggle-axis" class="px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors" title="Toggle: Customer ↔ Sales">
+                            🔄 Toggle Axis
+                        </button>
+                        <button id="rfq-customer-sales-toggle-simple" class="px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors" title="Toggle Simple Mode (Highlight Biggest Value)">
+                            ✨ Simple Mode
+                        </button>
+                        <div class="flex items-center gap-2">
+                            <label class="text-xs font-medium text-gray-700">Show:</label>
+                            <input type="number" id="rfq-customer-sales-show-count" min="1" max="1000" value="15" class="px-2 py-1 border border-gray-300 rounded text-xs w-16 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        <button id="rfq-customer-sales-toggle-all" class="px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors" title="Show All Customers/Sales">
+                            📈 Show All
+                        </button>
+                        <button class="widget-toggle w-6 h-6 flex items-center justify-center rounded text-gray-600 hover:bg-white" aria-label="Toggle widget">−</button>
+                    </div>
+                </div>
+                <div class="p-8 overflow-visible w-full">
+                    <!-- Filters -->
+                    <div class="flex flex-wrap gap-2 mb-6 pb-6 border-b border-gray-200">
+                        <input type="date" id="rfq-customer-sales-date-from" class="px-3 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Dari Tanggal">
+                        <input type="date" id="rfq-customer-sales-date-to" class="px-3 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Sampai Tanggal">
+                        <select id="rfq-customer-sales-customer" class="px-3 py-1.5 border border-gray-300 rounded text-sm min-w-[150px] focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="">Semua Customer</option>
+                        </select>
+                        <select id="rfq-customer-sales-sales" class="px-3 py-1.5 border border-gray-300 rounded text-sm min-w-[150px] focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="">Semua Sales</option>
+                        </select>
+                    </div>
+                    
+                    <!-- Status Filter -->
+                    <div class="flex items-center gap-4 mb-6 pb-6 border-b border-gray-200">
+                        <span class="text-sm font-medium text-gray-700">Status RFQ:</span>
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" id="rfq-customer-sales-status-jadi-oc" class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500" checked>
+                            <span class="text-sm text-gray-700">JADI OC</span>
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" id="rfq-customer-sales-status-tidak-jadi-oc" class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                            <span class="text-sm text-gray-700">TIDAK JADI OC</span>
+                        </label>
+                    </div>
+                    
+                    <!-- Chart Container -->
+                    <div class="relative h-[700px] my-6 w-full overflow-visible">
+                        <canvas id="chartRFQCustomerSales" class="w-full block"></canvas>
+                    </div>
+                    
+                    <!-- Summary Text -->
+                    <div class="mt-4 pt-4 border-t border-gray-200" id="rfq-customer-sales-summary">
+                        <p class="summary-text text-sm text-gray-600 m-0">—</p>
+                    </div>
+                    
+                    <!-- Filtered Data Table (shown on click) -->
+                    <div id="rfq-customer-sales-table-container" class="mt-6 pt-6 border-t-2 border-gray-200" style="display: none;">
+                        <div class="flex justify-between items-center mb-4">
+                            <h4 class="text-base font-semibold text-gray-900 m-0">Data Detail</h4>
+                            <button id="rfq-customer-sales-view-all" class="px-4 py-1 bg-white border border-gray-300 rounded text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-blue-500 transition-all">View All Rows</button>
+                        </div>
+                        <div class="overflow-auto">
+                            <table id="rfq-customer-sales-table" class="w-full border-collapse text-sm">
+                                <thead>
+                                    <tr>
+                                        <th class="px-4 py-3 text-left font-semibold text-gray-600 uppercase text-xs tracking-wider border-b-2 border-gray-200 bg-gray-50">NO. PENAWARAN</th>
+                                        <th class="px-4 py-3 text-left font-semibold text-gray-600 uppercase text-xs tracking-wider border-b-2 border-gray-200 bg-gray-50">DATE</th>
+                                        <th class="px-4 py-3 text-left font-semibold text-gray-600 uppercase text-xs tracking-wider border-b-2 border-gray-200 bg-gray-50">MARKERTING</th>
+                                        <th class="px-4 py-3 text-left font-semibold text-gray-600 uppercase text-xs tracking-wider border-b-2 border-gray-200 bg-gray-50">CUSTOMER NAME</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="rfq-customer-sales-table-body" class="[&>tr:hover]:bg-gray-50 [&>tr]:transition-colors">
+                                    <!-- Data will be populated here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Widget: Top Customer by RFQ Volume -->
+            <div class="col-span-full bg-white border border-gray-200 rounded-xl shadow-sm overflow-visible cursor-move relative w-full" data-widget-id="widget-top-customer-rfq-volume">
+                <div class="flex justify-between items-center px-6 py-4 border-b border-gray-200 bg-gray-50 cursor-move">
+                    <h3 class="text-lg font-semibold text-gray-900">Top Customer by RFQ Volume</h3>
+                    <button class="widget-toggle w-6 h-6 flex items-center justify-center rounded text-gray-600 hover:bg-white" aria-label="Toggle widget">−</button>
+                </div>
+                <div class="p-8 overflow-visible w-full">
+                    <!-- Filters -->
+                    <div class="flex flex-wrap gap-4 mb-6 pb-6 border-b border-gray-200 items-end">
+                        <div class="flex items-center gap-4">
+                            <span class="text-sm font-medium text-gray-700">Show:</span>
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" id="top-customer-status-jadi-oc" class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500" checked>
+                                <span class="text-sm text-gray-700">JADI OC</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" id="top-customer-status-tidak-jadi-oc" class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500" checked>
+                                <span class="text-sm text-gray-700">TIDAK JADI OC</span>
+                            </label>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <label class="text-sm font-medium text-gray-700">Show Top:</label>
+                            <input type="number" id="top-customer-show-count" min="1" max="1000" value="20" class="px-3 py-1.5 border border-gray-300 rounded text-sm w-20 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <span class="text-sm text-gray-600">customers</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Chart Container -->
+                    <div class="relative h-[600px] my-6 w-full overflow-visible">
+                        <canvas id="chartTopCustomerRFQVolume" class="w-full block"></canvas>
+                    </div>
+                    
+                    <!-- Summary Text -->
+                    <div class="mt-4 pt-4 border-t border-gray-200" id="top-customer-rfq-summary">
+                        <p class="summary-text text-sm text-gray-600 m-0">—</p>
+                    </div>
+                    
+                    <!-- Filtered Data Table (shown on click) -->
+                    <div id="top-customer-rfq-table-container" class="mt-6 pt-6 border-t-2 border-gray-200" style="display: none;">
+                        <div class="mb-4 pb-3 border-b border-gray-200">
+                            <h4 id="top-customer-rfq-table-title" class="text-base font-semibold text-gray-900 m-0"></h4>
+                        </div>
+                        
+                        <!-- Breakdown Selector -->
+                        <div class="mb-4 pb-3 border-b border-gray-200">
+                            <div class="flex items-center gap-3">
+                                <label class="text-sm font-medium text-gray-700">Breakdown by:</label>
+                                <select id="top-customer-breakdown-type" class="px-3 py-1.5 border border-gray-300 rounded text-sm min-w-[180px] focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                    <option value="marketing">MARKERTING</option>
+                                    <option value="harga">HARGA (NEW)</option>
+                                    <option value="remark">REMARK (KAROSERI)</option>
+                                    <option value="date">DATE</option>
+                                    <option value="status">KETERANGAN</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <!-- Dynamic Breakdown Summary -->
+                        <div id="top-customer-rfq-breakdown" class="mb-6">
+                            <h5 id="top-customer-rfq-breakdown-title" class="text-sm font-semibold text-gray-700 mb-3">Breakdown by MARKERTING:</h5>
+                            <div class="overflow-auto">
+                                <table id="top-customer-rfq-breakdown-table" class="w-full border-collapse text-sm">
+                                    <thead id="top-customer-rfq-breakdown-thead">
+                                        <tr>
+                                            <th class="px-4 py-2 text-left font-semibold text-gray-600 uppercase text-xs tracking-wider border-b-2 border-gray-200 bg-gray-50">CUSTOMER NAME</th>
+                                            <th class="px-4 py-2 text-left font-semibold text-gray-600 uppercase text-xs tracking-wider border-b-2 border-gray-200 bg-gray-50">MARKERTING</th>
+                                            <th class="px-4 py-2 text-center font-semibold text-gray-600 uppercase text-xs tracking-wider border-b-2 border-gray-200 bg-gray-50">TOTAL RFQ</th>
+                                            <th class="px-4 py-2 text-center font-semibold text-gray-600 uppercase text-xs tracking-wider border-b-2 border-gray-200 bg-gray-50">JADI OC</th>
+                                            <th class="px-4 py-2 text-center font-semibold text-gray-600 uppercase text-xs tracking-wider border-b-2 border-gray-200 bg-gray-50">TIDAK JADI OC</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="top-customer-rfq-breakdown-body" class="[&>tr:hover]:bg-gray-50 [&>tr]:transition-colors">
+                                        <!-- Data will be populated here -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        
+                        <!-- Detailed RFQ Table -->
+                        <div>
+                            <h5 class="text-sm font-semibold text-gray-700 mb-3">Detailed RFQ Records:</h5>
+                            <div class="overflow-auto">
+                                <table id="top-customer-rfq-table" class="w-full border-collapse text-sm">
+                                    <thead>
+                                        <tr>
+                                            <th class="px-4 py-3 text-left font-semibold text-gray-600 uppercase text-xs tracking-wider border-b-2 border-gray-200 bg-gray-50">NO. PENAWARAN</th>
+                                            <th class="px-4 py-3 text-left font-semibold text-gray-600 uppercase text-xs tracking-wider border-b-2 border-gray-200 bg-gray-50">DATE</th>
+                                            <th class="px-4 py-3 text-left font-semibold text-gray-600 uppercase text-xs tracking-wider border-b-2 border-gray-200 bg-gray-50">MARKERTING</th>
+                                            <th class="px-4 py-3 text-left font-semibold text-gray-600 uppercase text-xs tracking-wider border-b-2 border-gray-200 bg-gray-50">CUSTOMER NAME</th>
+                                            <th class="px-4 py-3 text-left font-semibold text-gray-600 uppercase text-xs tracking-wider border-b-2 border-gray-200 bg-gray-50">REMARK (KAROSERI)</th>
+                                            <th class="px-4 py-3 text-left font-semibold text-gray-600 uppercase text-xs tracking-wider border-b-2 border-gray-200 bg-gray-50">HARGA (NEW)</th>
+                                            <th class="px-4 py-3 text-left font-semibold text-gray-600 uppercase text-xs tracking-wider border-b-2 border-gray-200 bg-gray-50">KETERANGAN</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="top-customer-rfq-table-body" class="[&>tr:hover]:bg-gray-50 [&>tr]:transition-colors">
+                                        <!-- Data will be populated here -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Widget: Conversion Rate per Customer -->
+            <div class="col-span-full bg-white border border-gray-200 rounded-xl shadow-sm overflow-visible cursor-move relative w-full" data-widget-id="widget-conversion-rate-customer">
+                <div class="flex justify-between items-center px-6 py-4 border-b border-gray-200 bg-gray-50 cursor-move">
+                    <h3 class="text-lg font-semibold text-gray-900">Conversion Rate per Customer</h3>
+                    <button class="widget-toggle w-6 h-6 flex items-center justify-center rounded text-gray-600 hover:bg-white" aria-label="Toggle widget">−</button>
+                </div>
+                <div class="p-8 overflow-visible w-full">
+                    <!-- Filters -->
+                    <div class="flex flex-wrap gap-4 mb-6 pb-6 border-b border-gray-200 items-end">
+                        <div class="flex items-center gap-4">
+                            <span class="text-sm font-medium text-gray-700">Status:</span>
+                            <select id="conversion-status-filter" class="px-3 py-1.5 border border-gray-300 rounded text-sm min-w-[120px] focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <option value="all">ALL</option>
+                                <option value="jadi-oc">JADI OC</option>
+                                <option value="tidak-jadi-oc">TIDAK JADI OC</option>
+                            </select>
+                        </div>
+                        <input type="date" id="conversion-date-from" class="px-3 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Dari Tanggal">
+                        <input type="date" id="conversion-date-to" class="px-3 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Sampai Tanggal">
+                        <select id="conversion-sales-filter" class="px-3 py-1.5 border border-gray-300 rounded text-sm min-w-[150px] focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="">Semua Sales</option>
+                        </select>
+                        <select id="conversion-customer-filter" class="px-3 py-1.5 border border-gray-300 rounded text-sm min-w-[200px] focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="">Semua Customer</option>
+                        </select>
+                        <div class="flex items-center gap-2">
+                            <label class="text-sm font-medium text-gray-700">Show Top:</label>
+                            <input type="number" id="conversion-show-count" min="1" max="1000" value="20" class="px-3 py-1.5 border border-gray-300 rounded text-sm w-20 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <span class="text-sm text-gray-600">customers</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Chart Container -->
+                    <div class="relative h-[600px] my-6 w-full overflow-visible">
+                        <canvas id="chartConversionRateCustomer" class="w-full block"></canvas>
+                    </div>
+                    
+                    <!-- Summary Text -->
+                    <div class="mt-4 pt-4 border-t border-gray-200" id="conversion-rate-summary">
+                        <p class="summary-text text-sm text-gray-600 m-0">—</p>
+                    </div>
+                    
+                    <!-- Filtered Data Table (shown on click) -->
+                    <div id="conversion-rate-table-container" class="mt-6 pt-6 border-t-2 border-gray-200" style="display: none;">
+                        <div class="mb-4 pb-3 border-b border-gray-200">
+                            <h4 id="conversion-rate-table-title" class="text-base font-semibold text-gray-900 m-0"></h4>
+                        </div>
+                        
+                        <!-- Detailed RFQ Table -->
+                        <div>
+                            <div class="overflow-auto">
+                                <table id="conversion-rate-table" class="w-full border-collapse text-sm">
+                                    <thead>
+                                        <tr>
+                                            <th class="px-4 py-3 text-left font-semibold text-gray-600 uppercase text-xs tracking-wider border-b-2 border-gray-200 bg-gray-50">NO. PENAWARAN</th>
+                                            <th class="px-4 py-3 text-left font-semibold text-gray-600 uppercase text-xs tracking-wider border-b-2 border-gray-200 bg-gray-50">DATE</th>
+                                            <th class="px-4 py-3 text-left font-semibold text-gray-600 uppercase text-xs tracking-wider border-b-2 border-gray-200 bg-gray-50">MARKERTING</th>
+                                            <th class="px-4 py-3 text-left font-semibold text-gray-600 uppercase text-xs tracking-wider border-b-2 border-gray-200 bg-gray-50">CUSTOMER NAME</th>
+                                            <th class="px-4 py-3 text-left font-semibold text-gray-600 uppercase text-xs tracking-wider border-b-2 border-gray-200 bg-gray-50">REMARK (KAROSERI)</th>
+                                            <th class="px-4 py-3 text-left font-semibold text-gray-600 uppercase text-xs tracking-wider border-b-2 border-gray-200 bg-gray-50">HARGA (NEW)</th>
+                                            <th class="px-4 py-3 text-left font-semibold text-gray-600 uppercase text-xs tracking-wider border-b-2 border-gray-200 bg-gray-50">KETERANGAN</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="conversion-rate-table-body" class="[&>tr:hover]:bg-gray-50 [&>tr]:transition-colors">
+                                        <!-- Data will be populated here -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
