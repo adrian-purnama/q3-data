@@ -63,6 +63,10 @@
             </div>
             <div class="flex items-center gap-4 flex-wrap">
                 <div class="flex items-center gap-2">
+                    <label for="excelFile" class="cursor-pointer bg-white border border-gray-300 rounded-md px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+                        <span>📁 Pilih File Excel</span>
+                        <input type="file" id="excelFile" accept=".xlsx,.xls" class="hidden">
+                    </label>
                     <span id="fileName" class="text-sm text-gray-600"></span>
                 </div>
                 <button id="logoutButton" class="px-4 py-2 bg-white border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 transition-all hover:-translate-y-0.5" title="Logout">
