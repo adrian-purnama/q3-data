@@ -346,23 +346,15 @@ function getFilterValues(widgetId) {
 // ============================================
 
 function populateFilterOptions() {
-    const customers = [...new Set(dashboardData.parsed.map(d => d.customer ? d.customer.trim() : '').filter(c => c))].sort();
-    const sales = [...new Set(dashboardData.parsed.map(d => d.sales ? d.sales.trim() : '').filter(s => s))].sort();
+    if (!dashboardData.parsed || dashboardData.parsed.length === 0) return;
     
-    // Get min and max dates from data
+    const dateFromInput = document.getElementById('rfq-customer-sales-date-from');
+    const dateToInput = document.getElementById('rfq-customer-sales-date-to');
+    
     const dates = dashboardData.parsed
         .map(d => d.date)
-        .filter(d => d !== null && !isNaN(d.getTime()));
+        .filter(d => d instanceof Date && !isNaN(d.getTime()));
     
-    let minDate = null;
-    let maxDate = null;
-    
-    if (dates.length > 0) {
-        minDate = new Date(Math.min(...dates.map(d => d.getTime())));
-        maxDate = new Date(Math.max(...dates.map(d => d.getTime())));
-    }
-    
-    // Format dates for input[type="date"] (YYYY-MM-DD)
     const formatDateForInput = (date) => {
         if (!date) return '';
         const year = date.getFullYear();
@@ -371,138 +363,36 @@ function populateFilterOptions() {
         return `${year}-${month}-${day}`;
     };
     
-    const minDateStr = formatDateForInput(minDate);
-    const maxDateStr = formatDateForInput(maxDate);
+    if (dates.length > 0) {
+        const minDate = new Date(Math.min(...dates.map(d => d.getTime())));
+        const maxDate = new Date(Math.max(...dates.map(d => d.getTime())));
+        const minDateStr = formatDateForInput(minDate);
+        const maxDateStr = formatDateForInput(maxDate);
     
-    // Populate RFQ Customer Sales widget filters
-    const customerSelect = document.getElementById('rfq-customer-sales-customer');
+        if (dateFromInput) {
+            if (!dateFromInput.value) dateFromInput.value = minDateStr;
+            dateFromInput.setAttribute('min', minDateStr);
+            dateFromInput.setAttribute('max', maxDateStr);
+        }
+        
+        if (dateToInput) {
+            if (!dateToInput.value) dateToInput.value = maxDateStr;
+            dateToInput.setAttribute('min', minDateStr);
+            dateToInput.setAttribute('max', maxDateStr);
+        }
+    }
+    
+    // Rebuild dropdown options so the widget immediately shows correlated counts
+    try {
+        refreshRFQLinkedDropdowns({ preserveSelections: false });
+    } catch (error) {
+        console.error('Failed to refresh RFQ dropdowns:', error);
+    }
+    
     const salesSelect = document.getElementById('rfq-customer-sales-sales');
-    const dateFromInput = document.getElementById('rfq-customer-sales-date-from');
-    const dateToInput = document.getElementById('rfq-customer-sales-date-to');
-    
-    // Function to update customer dropdown with counts
-    const updateCustomerDropdown = (selectedSales = null) => {
-        if (!customerSelect) return;
-        
-        const currentValue = customerSelect.value;
-        let customerOptions = '<option value="">Semua Customer</option>';
-        
-        if (selectedSales) {
-            // Get status filter checkboxes
-            const statusJadiOC = document.getElementById('rfq-customer-sales-status-jadi-oc');
-            const statusTidakJadiOC = document.getElementById('rfq-customer-sales-status-tidak-jadi-oc');
-            const includeJadiOC = statusJadiOC?.checked || false;
-            const includeTidakJadiOC = statusTidakJadiOC?.checked || false;
-            
-            // Count RFQ per customer for selected sales (with status filter)
-            const customerCounts = {};
-            const selectedSalesNormalized = selectedSales.trim().toLowerCase();
-            
-            dashboardData.parsed.forEach(item => {
-                // Normalize sales for comparison
-                const itemSales = item.sales ? item.sales.trim() : '';
-                const itemCustomer = item.customer ? item.customer.trim() : '';
-                
-                // Exact match (case-insensitive)
-                if (itemSales.toLowerCase() === selectedSalesNormalized && itemCustomer) {
-                    // Apply status filter
-                    let include = false;
-                    if (includeJadiOC && includeTidakJadiOC) {
-                        // Both selected - include all (no status filter)
-                        include = true;
-                    } else if (includeJadiOC && !includeTidakJadiOC) {
-                        // Only JADI OC - include only converted
-                        include = item.isConverted;
-                    } else if (!includeJadiOC && includeTidakJadiOC) {
-                        // Only TIDAK JADI OC - include only not converted
-                        include = !item.isConverted;
-                    }
-                    // If both unchecked, include is false (no items)
-                    
-                    if (include) {
-                        // Use normalized customer name as key
-                        customerCounts[itemCustomer] = (customerCounts[itemCustomer] || 0) + 1;
-                    }
-                }
-            });
-            
-            // Filter customers that have count > 0, then sort by count (descending), then alphabetically
-            const sortedCustomers = customers.filter(c => customerCounts[c] > 0).sort((a, b) => {
-                const countA = customerCounts[a] || 0;
-                const countB = customerCounts[b] || 0;
-                if (countB !== countA) return countB - countA;
-                return a.localeCompare(b);
-            });
-            
-            // Only add customer options if there are customers with count > 0
-            if (sortedCustomers.length > 0) {
-                customerOptions += sortedCustomers.map(c => {
-                    const count = customerCounts[c] || 0;
-                    // Escape HTML in customer name for option value
-                    const escapedCustomer = c.replace(/"/g, '&quot;');
-                    return `<option value="${escapedCustomer}">${c} (${count})</option>`;
-                }).join('');
-            }
-            // If sortedCustomers is empty, dropdown will only show "Semua Customer"
-        } else {
-            // No sales selected, show all customers without counts
-            customerOptions += customers.map(c => {
-                const escapedCustomer = c.replace(/"/g, '&quot;');
-                return `<option value="${escapedCustomer}">${c}</option>`;
-            }).join('');
-        }
-        
-        customerSelect.innerHTML = customerOptions;
-        if (currentValue) {
-            // Try to restore selection, accounting for count display
-            const option = Array.from(customerSelect.options).find(opt => opt.value === currentValue);
-            if (option) {
-                customerSelect.value = currentValue;
-            } else {
-                // If the current value is no longer in the filtered list (e.g., filter changed),
-                // reset to "Semua Customer"
-                customerSelect.value = '';
-            }
-        }
-    };
-    
-    // Initial population
-    if (customerSelect) {
-        updateCustomerDropdown(null);
-    }
-    
-    if (salesSelect) {
-        const currentValue = salesSelect.value;
-        salesSelect.innerHTML = '<option value="">Semua Sales</option>' +
-            sales.map(s => `<option value="${s}">${s}</option>`).join('');
-        if (currentValue) salesSelect.value = currentValue;
-        
-        // Remove existing listeners to avoid duplicates
-        const newSalesSelect = salesSelect.cloneNode(true);
-        salesSelect.parentNode.replaceChild(newSalesSelect, salesSelect);
-        
-        // Update customer dropdown when sales changes
-        newSalesSelect.addEventListener('change', function() {
-            updateCustomerDropdown(this.value || null);
-        });
-        
-        // Update customer dropdown with current selection if any
-        if (currentValue) {
-            updateCustomerDropdown(currentValue);
-        }
-    }
-    
-    if (dateFromInput && minDateStr && !dateFromInput.value) {
-        dateFromInput.value = minDateStr;
-        dateFromInput.setAttribute('min', minDateStr);
-        dateFromInput.setAttribute('max', maxDateStr);
-    }
-    
-    if (dateToInput && maxDateStr && !dateToInput.value) {
-        dateToInput.value = maxDateStr;
-        dateToInput.setAttribute('min', minDateStr);
-        dateToInput.setAttribute('max', maxDateStr);
-    }
+    const customerSelect = document.getElementById('rfq-customer-sales-customer');
+    if (salesSelect) rfqFilterState.sales = (salesSelect.value || '').trim();
+    if (customerSelect) rfqFilterState.customer = (customerSelect.value || '').trim();
 }
 
 // ============================================
@@ -3429,23 +3319,25 @@ function initializeDashboard() {
     
     if (conversionDateFrom) {
         conversionDateFrom.addEventListener('change', () => {
+            populateConversionRateFilters({ preserveSalesSelection: true });
             createConversionRateCustomerChart();
             const tableContainer = document.getElementById('conversion-rate-table-container');
             if (tableContainer) tableContainer.style.display = 'none';
         });
     }
-    
+
     if (conversionDateTo) {
         conversionDateTo.addEventListener('change', () => {
+            populateConversionRateFilters({ preserveSalesSelection: true });
             createConversionRateCustomerChart();
             const tableContainer = document.getElementById('conversion-rate-table-container');
             if (tableContainer) tableContainer.style.display = 'none';
         });
     }
-    
+
     if (conversionSalesFilter) {
         conversionSalesFilter.addEventListener('change', () => {
-            populateConversionRateCustomerDropdown();
+            populateConversionRateCustomerDropdown({ preserveSelection: false });
             createConversionRateCustomerChart();
             const tableContainer = document.getElementById('conversion-rate-table-container');
             if (tableContainer) tableContainer.style.display = 'none';
@@ -3742,55 +3634,100 @@ function initializeDashboard() {
     console.log('Dashboard ready. Data available:', dashboardData.parsed.length, 'records');
 }
 
-function populateConversionRateFilters() {
-    if (!dashboardData.parsed || dashboardData.parsed.length === 0) return;
-    
-    // Populate Sales dropdown
-    const salesFilter = document.getElementById('conversion-sales-filter');
-    if (salesFilter) {
-        const allSales = [...new Set(dashboardData.parsed.map(d => d.sales ? d.sales.trim() : '').filter(s => s))].sort();
-        let salesOptions = '<option value="">Semua Sales</option>';
-        salesOptions += allSales.map(sales => {
-            const escapedSales = sales.replace(/"/g, '&quot;');
-            return `<option value="${escapedSales}">${sales}</option>`;
-        }).join('');
-        salesFilter.innerHTML = salesOptions;
+function getConversionFilterBaseData() {
+    if (!dashboardData.parsed || dashboardData.parsed.length === 0) return [];
+
+    const dateFromInput = document.getElementById('conversion-date-from');
+    const dateToInput = document.getElementById('conversion-date-to');
+    const parsedDateFrom = dateFromInput?.value ? new Date(dateFromInput.value) : null;
+    const parsedDateTo = dateToInput?.value ? new Date(dateToInput.value) : null;
+
+    if (parsedDateTo) {
+        parsedDateTo.setHours(23, 59, 59, 999);
     }
-    
-    // Populate Customer dropdown
-    populateConversionRateCustomerDropdown();
+
+    return dashboardData.parsed.filter((item) => {
+        if (!parsedDateFrom && !parsedDateTo) return true;
+        if (!item.date) return false;
+        const itemDate = item.date instanceof Date ? item.date : new Date(item.date);
+        if (parsedDateFrom && itemDate < parsedDateFrom) return false;
+        if (parsedDateTo && itemDate > parsedDateTo) return false;
+        return true;
+    });
 }
 
-function populateConversionRateCustomerDropdown() {
+function populateConversionRateFilters({ preserveSalesSelection = true } = {}) {
+    if (!dashboardData.parsed || dashboardData.parsed.length === 0) return;
+
+    const salesFilter = document.getElementById('conversion-sales-filter');
+    if (salesFilter) {
+        const baseData = getConversionFilterBaseData();
+        const counts = {};
+
+        baseData.forEach((item) => {
+            const salesName = (item.sales || '').trim();
+            if (!salesName) return;
+            counts[salesName] = (counts[salesName] || 0) + 1;
+        });
+
+        const entries = Object.entries(counts)
+            .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+
+        const previousValue = preserveSalesSelection ? salesFilter.value : '';
+        let salesOptions = '<option value="">Semua Sales</option>';
+        entries.forEach(([name, count]) => {
+            const escapedSales = name.replace(/"/g, '&quot;');
+            salesOptions += `<option value="${escapedSales}">${formatOptionLabel(name, count)}</option>`;
+        });
+
+        salesFilter.innerHTML = salesOptions;
+        if (previousValue && counts[previousValue]) {
+            salesFilter.value = previousValue;
+        } else if (!preserveSalesSelection) {
+            salesFilter.value = '';
+        }
+    }
+
+    populateConversionRateCustomerDropdown({ preserveSelection: true });
+}
+
+function populateConversionRateCustomerDropdown({ preserveSelection = true } = {}) {
     const customerFilter = document.getElementById('conversion-customer-filter');
     const salesFilter = document.getElementById('conversion-sales-filter');
-    
+
     if (!customerFilter) return;
-    
-    // Get selected sales filter
-    const selectedSales = salesFilter?.value?.trim() || '';
-    
-    // Get all customers (filtered by sales if selected)
-    let customers = dashboardData.parsed
-        .filter(item => {
-            if (selectedSales) {
-                const itemSales = item.sales ? item.sales.trim().toLowerCase() : '';
-                return itemSales === selectedSales.toLowerCase();
-            }
-            return true;
-        })
-        .map(d => d.customer ? d.customer.trim() : '')
-        .filter(c => c);
-    
-    const uniqueCustomers = [...new Set(customers)].sort();
-    
+
+    const baseData = getConversionFilterBaseData();
+    const selectedSales = salesFilter?.value?.trim().toLowerCase() || '';
+    const counts = {};
+
+    baseData.forEach((item) => {
+        const customerName = (item.customer || '').trim();
+        if (!customerName) return;
+        if (selectedSales) {
+            const itemSales = (item.sales || '').trim().toLowerCase();
+            if (itemSales !== selectedSales) return;
+        }
+        counts[customerName] = (counts[customerName] || 0) + 1;
+    });
+
+    const entries = Object.entries(counts)
+        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+
+    const previousValue = preserveSelection ? customerFilter.value : '';
     let customerOptions = '<option value="">Semua Customer</option>';
-    customerOptions += uniqueCustomers.map(customer => {
-        const escapedCustomer = customer.replace(/"/g, '&quot;');
-        return `<option value="${escapedCustomer}">${customer}</option>`;
-    }).join('');
-    
+    entries.forEach(([name, count]) => {
+        const escapedCustomer = name.replace(/"/g, '&quot;');
+        customerOptions += `<option value="${escapedCustomer}">${formatOptionLabel(name, count)}</option>`;
+    });
+
     customerFilter.innerHTML = customerOptions;
+
+    if (previousValue && counts[previousValue]) {
+        customerFilter.value = previousValue;
+    } else if (!preserveSelection) {
+        customerFilter.value = '';
+    }
 }
 
 // ============================================
@@ -3839,3 +3776,163 @@ document.addEventListener('DOMContentLoaded', async function() {
         });
     }
 });
+const rfqFilterState = {
+    sales: '',
+    customer: ''
+};
+
+function getRFQBaseFilteredData(overrides = {}) {
+    const dateFromInput = document.getElementById('rfq-customer-sales-date-from');
+    const dateToInput = document.getElementById('rfq-customer-sales-date-to');
+    const statusConverted = document.getElementById('rfq-customer-sales-status-jadi-oc');
+    const statusNotConverted = document.getElementById('rfq-customer-sales-status-tidak-jadi-oc');
+
+    const dateFrom = overrides.dateFrom || dateFromInput?.value || '';
+    const dateTo = overrides.dateTo || dateToInput?.value || '';
+    const includeConverted = overrides.includeConverted !== undefined ? overrides.includeConverted : (statusConverted?.checked ?? true);
+    const includeNotConverted = overrides.includeNotConverted !== undefined ? overrides.includeNotConverted : (statusNotConverted?.checked ?? true);
+
+    const parsedDateFrom = dateFrom ? new Date(dateFrom) : null;
+    const parsedDateTo = dateTo ? new Date(dateTo) : null;
+    if (parsedDateTo) parsedDateTo.setHours(23, 59, 59, 999);
+
+    return dashboardData.parsed.filter((item) => {
+        if (!includeConverted && item.isConverted) return false;
+        if (!includeNotConverted && !item.isConverted) return false;
+
+        if (parsedDateFrom && (!item.date || item.date < parsedDateFrom)) return false;
+        if (parsedDateTo && (!item.date || item.date > parsedDateTo)) return false;
+
+        return true;
+    });
+}
+
+function formatOptionLabel(name, count) {
+    if (!name) return '';
+    return `${name} (${count} RFQ)`;
+}
+
+function updateRFQSalesOptions({ preserveSelection = true } = {}) {
+    const salesSelect = document.getElementById('rfq-customer-sales-sales');
+    const customerValue = rfqFilterState.customer?.trim().toLowerCase();
+    if (!salesSelect) return;
+
+    const baseData = getRFQBaseFilteredData();
+    const counts = {};
+
+    baseData.forEach((item) => {
+        const salesName = (item.sales || '').trim();
+        if (!salesName) return;
+        if (customerValue && (!item.customer || item.customer.trim().toLowerCase() !== customerValue)) return;
+        counts[salesName] = (counts[salesName] || 0) + 1;
+    });
+
+    const entries = Object.entries(counts)
+        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+
+    const previousValue = preserveSelection ? salesSelect.value : '';
+    let optionsHtml = '<option value="">Semua Sales</option>';
+    entries.forEach(([name, count]) => {
+        const escaped = name.replace(/"/g, '&quot;');
+        optionsHtml += `<option value="${escaped}">${formatOptionLabel(name, count)}</option>`;
+    });
+
+    salesSelect.innerHTML = optionsHtml;
+    if (previousValue && counts[previousValue]) {
+        salesSelect.value = previousValue;
+    } else if (!preserveSelection) {
+        salesSelect.value = '';
+    }
+}
+
+function updateRFQCustomerOptions({ preserveSelection = true } = {}) {
+    const customerSelect = document.getElementById('rfq-customer-sales-customer');
+    const salesValue = rfqFilterState.sales?.trim().toLowerCase();
+    if (!customerSelect) return;
+
+    const baseData = getRFQBaseFilteredData();
+    const counts = {};
+
+    baseData.forEach((item) => {
+        const customerName = (item.customer || '').trim();
+        if (!customerName) return;
+        if (salesValue && (!item.sales || item.sales.trim().toLowerCase() !== salesValue)) return;
+        counts[customerName] = (counts[customerName] || 0) + 1;
+    });
+
+    const entries = Object.entries(counts)
+        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+
+    const previousValue = preserveSelection ? customerSelect.value : '';
+    let optionsHtml = '<option value="">Semua Customer</option>';
+    entries.forEach(([name, count]) => {
+        const escaped = name.replace(/"/g, '&quot;');
+        optionsHtml += `<option value="${escaped}">${formatOptionLabel(name, count)}</option>`;
+    });
+
+    customerSelect.innerHTML = optionsHtml;
+    if (previousValue && counts[previousValue]) {
+        customerSelect.value = previousValue;
+    } else if (!preserveSelection) {
+        customerSelect.value = '';
+    }
+}
+
+function refreshRFQLinkedDropdowns({ preserveSelections = true } = {}) {
+    updateRFQSalesOptions({ preserveSelection: preserveSelections });
+    updateRFQCustomerOptions({ preserveSelection: preserveSelections });
+}
+
+// ============================================
+// Smart RFQ Dropdowns (bidirectional, with counts)
+// ============================================
+(function setupSmartRFQDropdowns(){
+    const salesSelect = document.getElementById('rfq-customer-sales-sales');
+    const customerSelect = document.getElementById('rfq-customer-sales-customer');
+    const dateFrom = document.getElementById('rfq-customer-sales-date-from');
+    const dateTo = document.getElementById('rfq-customer-sales-date-to');
+    const statusYes = document.getElementById('rfq-customer-sales-status-jadi-oc');
+    const statusNo = document.getElementById('rfq-customer-sales-status-tidak-jadi-oc');
+
+    if (!salesSelect || !customerSelect) return;
+
+    const hideDetailTable = () => {
+        const tableContainer = document.getElementById('rfq-customer-sales-table-container');
+        if (tableContainer) tableContainer.style.display = 'none';
+    };
+
+    // Initialize state from current selects
+    rfqFilterState.sales = (salesSelect.value || '').trim();
+    rfqFilterState.customer = (customerSelect.value || '').trim();
+
+    // Initial population with current context
+    try { refreshRFQLinkedDropdowns({ preserveSelections: true }); } catch(e) {}
+
+    // Attach listeners
+    salesSelect.addEventListener('change', () => {
+        rfqFilterState.sales = (salesSelect.value || '').trim();
+        // Update the linked customer list
+        try { updateRFQCustomerOptions({ preserveSelection: true }); } catch(e) {}
+        // Re-render the chart and hide detail table
+        try { createRFQCustomerSalesChart(); } catch(e) {}
+        hideDetailTable();
+    });
+
+    customerSelect.addEventListener('change', () => {
+        rfqFilterState.customer = (customerSelect.value || '').trim();
+        // Update the linked sales list
+        try { updateRFQSalesOptions({ preserveSelection: true }); } catch(e) {}
+        // Re-render the chart and hide detail table
+        try { createRFQCustomerSalesChart(); } catch(e) {}
+        hideDetailTable();
+    });
+
+    const refreshOnContext = () => {
+        try { refreshRFQLinkedDropdowns({ preserveSelections: true }); } catch(e) {}
+    };
+
+    if (dateFrom) dateFrom.addEventListener('change', refreshOnContext);
+    if (dateTo) dateTo.addEventListener('change', refreshOnContext);
+    if (statusYes) statusYes.addEventListener('change', refreshOnContext);
+    if (statusNo) statusNo.addEventListener('change', refreshOnContext);
+})();
