@@ -720,6 +720,7 @@ function createRFQCustomerSalesChart() {
     const salesFilter = document.getElementById('rfq-customer-sales-sales');
     const statusJadiOC = document.getElementById('rfq-customer-sales-status-jadi-oc');
     const statusTidakJadiOC = document.getElementById('rfq-customer-sales-status-tidak-jadi-oc');
+    const rfqShowCountInputEl = document.getElementById('rfq-customer-sales-show-count');
     const sortOrderSelect = document.getElementById('rfq-customer-sales-sort-order');
     
     const filters = {
@@ -731,6 +732,9 @@ function createRFQCustomerSalesChart() {
 
     const sortOrder = ((sortOrderSelect?.value || rfqCustomerSalesSortOrder || 'desc').toLowerCase() === 'asc') ? 'asc' : 'desc';
     rfqCustomerSalesSortOrder = sortOrder;
+    const parsedLimit = rfqShowCountInputEl ? parseInt(rfqShowCountInputEl.value, 10) : NaN;
+    const normalizedLimit = Number.isFinite(parsedLimit) && parsedLimit > 0 ? parsedLimit : rfqCustomerSalesShowCount;
+    const limitLabel = chartShowAll ? 'Semua' : `Top ${normalizedLimit}`;
     
     // Debug: Log filter values
     const debugBothChecked = statusJadiOC?.checked && statusTidakJadiOC?.checked;
@@ -766,6 +770,23 @@ function createRFQCustomerSalesChart() {
         // Neither selected - should not happen (we prevent this), but show nothing
         filteredData = [];
     }
+    
+    const statusLabel = includeJadiOC && includeTidakJadiOC
+        ? 'ALL'
+        : includeJadiOC
+            ? 'JADI OC'
+            : 'TIDAK JADI OC';
+    const summaryItems = [
+        { label: 'Periode', value: formatDateRangeLabel(filters.dateFrom, filters.dateTo) }
+    ];
+    if (filters.customer) summaryItems.push({ label: 'Customer', value: filters.customer });
+    if (filters.sales) summaryItems.push({ label: 'Sales', value: filters.sales });
+    summaryItems.push({ label: 'Status', value: statusLabel });
+    summaryItems.push({ label: 'Sort', value: sortOrder === 'asc' ? 'Terkecil' : 'Terbanyak' });
+    summaryItems.push({ label: 'Limit', value: limitLabel });
+    summaryItems.push({ label: 'Mode', value: chartAxisOrientation === 'customer-sales' ? 'Customer -> Sales' : 'Sales -> Customer' });
+    summaryItems.push({ label: 'Records', value: `${filteredData.length} RFQ` });
+    renderFilterSummary('rfq-filter-summary', summaryItems);
     
     // Debug: Log counts - verify no filtering when both checked
     if (includeJadiOC && includeTidakJadiOC) {
@@ -1703,6 +1724,13 @@ function createTopCustomerRFQVolumeChart() {
     // Show top N customers
     const topCustomers = sortedCustomers.slice(0, showCount);
     
+    renderFilterSummary('top-customer-filter-summary', [
+        { label: 'Status', value: includeJadiOC && includeTidakJadiOC ? 'ALL' : includeJadiOC ? 'JADI OC' : 'TIDAK JADI OC' },
+        { label: 'Sort', value: sortOrder === 'asc' ? 'Terkecil' : 'Terbanyak' },
+        { label: 'Limit', value: `${showCount} cust` },
+        { label: 'Data', value: `${sortedCustomers.length} cust` }
+    ]);
+    
     // Prepare chart data - grouped bar chart
     const labels = topCustomers.map(item => {
         // Truncate long customer names
@@ -2074,6 +2102,17 @@ function createConversionRateCustomerChart() {
     
     // Show top N customers
     const topCustomers = displayCustomers.slice(0, showCount);
+    
+    const summaryItems = [
+        { label: 'Status', value: statusValue === 'all' ? 'ALL' : statusValue === 'jadi-oc' ? 'JADI OC' : 'TIDAK JADI OC' },
+        { label: 'Periode', value: formatDateRangeLabel(dateFrom, dateTo) }
+    ];
+    if (selectedSales) summaryItems.push({ label: 'Sales', value: selectedSales });
+    if (selectedCustomer) summaryItems.push({ label: 'Customer', value: selectedCustomer });
+    summaryItems.push({ label: 'Sort', value: sortOrder === 'asc' ? 'Terendah' : 'Tertinggi' });
+    summaryItems.push({ label: 'Limit', value: `${showCount} cust` });
+    summaryItems.push({ label: 'Data', value: `${displayCustomers.length} cust` });
+    renderFilterSummary('conversion-filter-summary', summaryItems);
     
     if (topCustomers.length === 0) {
         // Destroy existing chart if it exists
@@ -3834,6 +3873,46 @@ function getRFQBaseFilteredData(overrides = {}) {
 function formatOptionLabel(name, count) {
     if (!name) return '';
     return `${name} (${count} RFQ)`;
+}
+
+function escapeHtml(value) {
+    if (value === null || value === undefined) return '';
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function renderFilterSummary(containerId, items = []) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    const validItems = items.filter(item => item && typeof item.label === 'string' && item.value !== undefined && item.value !== null);
+
+    if (validItems.length === 0) {
+        container.innerHTML = '<span class="filter-chip muted">Menampilkan semua data</span>';
+        return;
+    }
+
+    container.innerHTML = validItems
+        .map(({ label, value }) => `<span class="filter-chip"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></span>`)
+        .join('');
+}
+
+function formatDateRangeLabel(from, to) {
+    if (!from && !to) return 'Semua tanggal';
+    const format = (value) => {
+        if (!value) return '';
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return value;
+        return date.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
+    };
+
+    if (from && to) return `${format(from)} - ${format(to)}`;
+    if (from) return `>= ${format(from)}`;
+    return `<= ${format(to)}`;
 }
 
 function updateRFQSalesOptions({ preserveSelection = true } = {}) {
