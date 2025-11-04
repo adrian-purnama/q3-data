@@ -703,6 +703,9 @@ let chartSimpleMode = false;
 let chartShowAll = false;
 // Store custom show count for RFQ Customer Sales widget
 let rfqCustomerSalesShowCount = 15;
+let rfqCustomerSalesSortOrder = 'desc';
+let topCustomerRFQSortOrder = 'desc';
+let conversionRateSortOrder = 'desc';
 // Store custom show count for Top Customer RFQ Volume widget
 let topCustomerRFQVolumeShowCount = 20;
 
@@ -717,6 +720,7 @@ function createRFQCustomerSalesChart() {
     const salesFilter = document.getElementById('rfq-customer-sales-sales');
     const statusJadiOC = document.getElementById('rfq-customer-sales-status-jadi-oc');
     const statusTidakJadiOC = document.getElementById('rfq-customer-sales-status-tidak-jadi-oc');
+    const sortOrderSelect = document.getElementById('rfq-customer-sales-sort-order');
     
     const filters = {
         dateFrom: dateFromInput?.value || '',
@@ -724,6 +728,9 @@ function createRFQCustomerSalesChart() {
         customer: customerFilter?.value?.trim() || '',
         sales: salesFilter?.value?.trim() || ''
     };
+
+    const sortOrder = ((sortOrderSelect?.value || rfqCustomerSalesSortOrder || 'desc').toLowerCase() === 'asc') ? 'asc' : 'desc';
+    rfqCustomerSalesSortOrder = sortOrder;
     
     // Debug: Log filter values
     const debugBothChecked = statusJadiOC?.checked && statusTidakJadiOC?.checked;
@@ -835,7 +842,7 @@ function createRFQCustomerSalesChart() {
     const allCustomers = Object.keys(customerSalesMap).sort((a, b) => {
         const totalA = Object.values(customerSalesMap[a]).reduce((sum, val) => sum + val, 0);
         const totalB = Object.values(customerSalesMap[b]).reduce((sum, val) => sum + val, 0);
-        return totalB - totalA;
+        return sortOrder === 'asc' ? totalA - totalB : totalB - totalA;
     });
     
     // Check if there's no data after filtering
@@ -1064,7 +1071,7 @@ function createRFQCustomerSalesChart() {
         const allSalesSorted = Object.keys(salesCustomerMap).sort((a, b) => {
             const totalA = Object.values(salesCustomerMap[a] || {}).reduce((sum, val) => sum + val, 0);
             const totalB = Object.values(salesCustomerMap[b] || {}).reduce((sum, val) => sum + val, 0);
-            return totalB - totalA;
+            return sortOrder === 'asc' ? totalA - totalB : totalB - totalA;
         });
         
         // Show top N or all sales based on toggle and custom count
@@ -1613,6 +1620,15 @@ function createTopCustomerRFQVolumeChart() {
     const statusTidakJadiOC = document.getElementById('top-customer-status-tidak-jadi-oc');
     const includeJadiOC = statusJadiOC?.checked || false;
     const includeTidakJadiOC = statusTidakJadiOC?.checked || false;
+    const sortOrderSelect = document.getElementById('top-customer-sort-order');
+    const sortOrder = ((sortOrderSelect?.value || topCustomerRFQSortOrder || 'desc').toLowerCase() === 'asc') ? 'asc' : 'desc';
+    topCustomerRFQSortOrder = sortOrder;
+    const orderMultiplier = sortOrder === 'asc' ? 1 : -1;
+    const compareBy = (valueGetter) => (a, b) => {
+        const diff = valueGetter(a) - valueGetter(b);
+        if (diff !== 0) return orderMultiplier * diff;
+        return a.customer.localeCompare(b.customer);
+    };
     
     // Ensure at least one is checked
     if (!includeJadiOC && !includeTidakJadiOC) {
@@ -1661,40 +1677,22 @@ function createTopCustomerRFQVolumeChart() {
         // Both checked: Sort by total count (JADI OC + TIDAK JADI OC)
         sortedCustomers = sortedCustomers
             .filter(c => c.count > 0) // Only show customers with at least one RFQ
-            .sort((a, b) => {
-                // Primary sort: total count (descending)
-                if (b.count !== a.count) return b.count - a.count;
-                // Secondary sort: customer name (ascending) for consistency
-                return a.customer.localeCompare(b.customer);
-            });
+            .sort(compareBy(item => item.count));
     } else if (includeJadiOC && !includeTidakJadiOC) {
         // Only JADI OC checked: Sort by JADI OC count
         sortedCustomers = sortedCustomers
             .filter(c => c.jadiOC > 0) // Only show customers with JADI OC RFQ
-            .sort((a, b) => {
-                // Primary sort: JADI OC count (descending)
-                if (b.jadiOC !== a.jadiOC) return b.jadiOC - a.jadiOC;
-                // Secondary sort: customer name (ascending) for consistency
-                return a.customer.localeCompare(b.customer);
-            });
+            .sort(compareBy(item => item.jadiOC));
     } else if (!includeJadiOC && includeTidakJadiOC) {
         // Only TIDAK JADI OC checked: Sort by TIDAK JADI OC count
         sortedCustomers = sortedCustomers
             .filter(c => c.tidakJadiOC > 0) // Only show customers with TIDAK JADI OC RFQ
-            .sort((a, b) => {
-                // Primary sort: TIDAK JADI OC count (descending)
-                if (b.tidakJadiOC !== a.tidakJadiOC) return b.tidakJadiOC - a.tidakJadiOC;
-                // Secondary sort: customer name (ascending) for consistency
-                return a.customer.localeCompare(b.customer);
-            });
+            .sort(compareBy(item => item.tidakJadiOC));
     } else {
         // Neither checked (shouldn't happen, but fallback to total count)
         sortedCustomers = sortedCustomers
             .filter(c => c.count > 0)
-            .sort((a, b) => {
-                if (b.count !== a.count) return b.count - a.count;
-                return a.customer.localeCompare(b.customer);
-            });
+            .sort(compareBy(item => item.count));
     }
     
     // Get custom show count
@@ -1957,6 +1955,7 @@ function createConversionRateCustomerChart() {
     const salesFilter = document.getElementById('conversion-sales-filter');
     const customerFilter = document.getElementById('conversion-customer-filter');
     const showCountInput = document.getElementById('conversion-show-count');
+    const sortOrderSelect = document.getElementById('conversion-sort-order');
     
     const statusValue = statusFilter?.value || 'all';
     const dateFrom = dateFromInput?.value || '';
@@ -1964,6 +1963,8 @@ function createConversionRateCustomerChart() {
     const selectedSales = salesFilter?.value?.trim() || '';
     const selectedCustomer = customerFilter?.value?.trim() || '';
     const showCount = showCountInput ? parseInt(showCountInput.value) || 20 : 20;
+    const sortOrder = ((sortOrderSelect?.value || conversionRateSortOrder || 'desc').toLowerCase() === 'asc') ? 'asc' : 'desc';
+    conversionRateSortOrder = sortOrder;
     
     // Filter data based on filters (EXCEPT status filter - status is only for display, not calculation)
     // Conversion rate must be calculated from ALL RFQs for each customer (within date/sales/customer filters)
@@ -2043,12 +2044,16 @@ function createConversionRateCustomerChart() {
                 items: details.items
             };
         })
-        // Sort by conversion rate (highest to lowest), then by total RFQ (descending)
+        // Sort by conversion rate with selectable order, then by total RFQ
         .sort((a, b) => {
-            if (Math.abs(b.conversionRate - a.conversionRate) > 0.01) {
-                return b.conversionRate - a.conversionRate;
+            if (Math.abs(a.conversionRate - b.conversionRate) > 0.01) {
+                return sortOrder === 'asc'
+                    ? a.conversionRate - b.conversionRate
+                    : b.conversionRate - a.conversionRate;
             }
-            return b.totalRFQ - a.totalRFQ;
+            return sortOrder === 'asc'
+                ? a.totalRFQ - b.totalRFQ
+                : b.totalRFQ - a.totalRFQ;
         });
     
     // Filter customers with at least 1 RFQ (required for meaningful conversion rate)
@@ -3308,6 +3313,7 @@ function initializeDashboard() {
     const conversionSalesFilter = document.getElementById('conversion-sales-filter');
     const conversionCustomerFilter = document.getElementById('conversion-customer-filter');
     const conversionShowCount = document.getElementById('conversion-show-count');
+    const conversionSortOrder = document.getElementById('conversion-sort-order');
     
     if (conversionStatusFilter) {
         conversionStatusFilter.addEventListener('change', () => {
@@ -3365,15 +3371,24 @@ function initializeDashboard() {
         });
     }
     
+    if (conversionSortOrder) {
+        conversionSortOrder.addEventListener('change', () => {
+            createConversionRateCustomerChart();
+            const tableContainer = document.getElementById('conversion-rate-table-container');
+            if (tableContainer) tableContainer.style.display = 'none';
+        });
+    }
+    
     // Setup filter listeners for RFQ Customer Sales widget
     const dateFromInput = document.getElementById('rfq-customer-sales-date-from');
     const dateToInput = document.getElementById('rfq-customer-sales-date-to');
     const customerFilter = document.getElementById('rfq-customer-sales-customer');
     const salesFilter = document.getElementById('rfq-customer-sales-sales');
+    const sortOrderSelect = document.getElementById('rfq-customer-sales-sort-order');
     const viewAllBtn = document.getElementById('rfq-customer-sales-view-all');
     
     // Setup chart update listeners for all filters
-    [dateFromInput, dateToInput, customerFilter].forEach(el => {
+    [dateFromInput, dateToInput, customerFilter, sortOrderSelect].forEach(el => {
         if (el) {
             el.addEventListener('change', () => {
                 createRFQCustomerSalesChart();
@@ -3593,6 +3608,7 @@ function initializeDashboard() {
     const topCustomerStatusJadiOC = document.getElementById('top-customer-status-jadi-oc');
     const topCustomerStatusTidakJadiOC = document.getElementById('top-customer-status-tidak-jadi-oc');
     const topCustomerShowCountInput = document.getElementById('top-customer-show-count');
+    const topCustomerSortOrder = document.getElementById('top-customer-sort-order');
     
     [topCustomerStatusJadiOC, topCustomerStatusTidakJadiOC].forEach(checkbox => {
         if (checkbox) {
@@ -3628,6 +3644,14 @@ function initializeDashboard() {
                 // Reset to default if invalid
                 topCustomerShowCountInput.value = topCustomerRFQVolumeShowCount;
             }
+        });
+    }
+    
+    if (topCustomerSortOrder) {
+        topCustomerSortOrder.addEventListener('change', () => {
+            createTopCustomerRFQVolumeChart();
+            const tableContainer = document.getElementById('top-customer-rfq-table-container');
+            if (tableContainer) tableContainer.style.display = 'none';
         });
     }
     

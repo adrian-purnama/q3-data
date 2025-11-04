@@ -130,6 +130,13 @@
                         <select id="rfq-customer-sales-sales" class="px-3 py-1.5 border border-gray-300 rounded text-sm min-w-[150px] focus:outline-none focus:ring-2 focus:ring-blue-500">
                             <option value="">Semua Sales</option>
                         </select>
+                        <div class="flex items-center gap-2">
+                            <label for="rfq-customer-sales-sort-order" class="text-sm font-medium text-gray-700 whitespace-nowrap">Sort:</label>
+                            <select id="rfq-customer-sales-sort-order" class="px-3 py-1.5 border border-gray-300 rounded text-sm min-w-[170px] focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <option value="desc" selected>Terbanyak → Terkecil</option>
+                                <option value="asc">Terkecil → Terbanyak</option>
+                            </select>
+                        </div>
                     </div>
                     
                     <!-- Status Filter -->
@@ -204,6 +211,13 @@
                             <label class="text-sm font-medium text-gray-700">Show Top:</label>
                             <input type="number" id="top-customer-show-count" min="1" max="1000" value="20" class="px-3 py-1.5 border border-gray-300 rounded text-sm w-20 focus:outline-none focus:ring-2 focus:ring-blue-500">
                             <span class="text-sm text-gray-600">customers</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <label for="top-customer-sort-order" class="text-sm font-medium text-gray-700 whitespace-nowrap">Sort:</label>
+                            <select id="top-customer-sort-order" class="px-3 py-1.5 border border-gray-300 rounded text-sm min-w-[170px] focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <option value="desc" selected>Terbanyak → Terkecil</option>
+                                <option value="asc">Terkecil → Terbanyak</option>
+                            </select>
                         </div>
                     </div>
                     
@@ -313,6 +327,13 @@
                             <label class="text-sm font-medium text-gray-700">Show Top:</label>
                             <input type="number" id="conversion-show-count" min="1" max="1000" value="20" class="px-3 py-1.5 border border-gray-300 rounded text-sm w-20 focus:outline-none focus:ring-2 focus:ring-blue-500">
                             <span class="text-sm text-gray-600">customers</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <label for="conversion-sort-order" class="text-sm font-medium text-gray-700 whitespace-nowrap">Sort:</label>
+                            <select id="conversion-sort-order" class="px-3 py-1.5 border border-gray-300 rounded text-sm min-w-[190px] focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <option value="desc" selected>Conversion Rate tertinggi</option>
+                                <option value="asc">Conversion Rate terendah</option>
+                            </select>
                         </div>
                     </div>
                     
